@@ -8,10 +8,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/crosbymichael/log"
-	"github.com/crosbymichael/skydock/docker"
-	"github.com/crosbymichael/skydock/utils"
-	influxdb "github.com/influxdb/influxdb/client"
+	//"log"
+	"github.com/kalabox/skydock/docker"
+	"github.com/kalabox/skydock/utils"
 	"github.com/skynetservices/skydns1/client"
 	"github.com/skynetservices/skydns1/msg"
 	"os"
@@ -71,34 +70,6 @@ func validateSettings() {
 	}
 }
 
-func setupLogger() error {
-	var (
-		logger log.Logger
-		err    error
-	)
-
-	if host := os.Getenv("INFLUXDB_HOST"); host != "" {
-		config := &influxdb.ClientConfig{
-			Host:     host,
-			Database: os.Getenv("INFLUXDB_DATABASE"),
-			Username: os.Getenv("INFLUXDB_USER"),
-			Password: os.Getenv("INFLUXDB_PASSWORD"),
-		}
-
-		logger, err = log.NewInfluxdbLogger(fmt.Sprintf("%s.%s", environment, domain), "skydock", config)
-		if err != nil {
-			return err
-		}
-	} else {
-		logger = log.NewStandardLevelLogger("skydock")
-	}
-
-	if err := log.SetLogger(logger); err != nil {
-		return err
-	}
-	return nil
-}
-
 func heartbeat(uuid string) {
 	runningLock.Lock()
 	if _, exists := running[uuid]; exists {
@@ -118,19 +89,19 @@ func heartbeat(uuid string) {
 	for _ = range time.Tick(time.Duration(beat) * time.Second) {
 		if errorCount > 10 {
 			// if we encountered more than 10 errors just quit
-			log.Logf(log.ERROR, "aborting heartbeat for %s after 10 errors", uuid)
+			//log.Logf(log.ERROR, "aborting heartbeat for %s after 10 errors", uuid)
 			return
 		}
 
 		// don't fill logs if we have a low beat
 		// may need to do something better here
 		if beat >= 30 {
-			log.Logf(log.INFO, "updating ttl for %s", uuid)
+			//log.Logf(log.INFO, "updating ttl for %s", uuid)
 		}
 
 		if err := updateService(uuid, ttl); err != nil {
 			errorCount++
-			log.Logf(log.ERROR, "%s", err)
+			//log.Logf(log.ERROR, "%s", err)
 			break
 		}
 	}
@@ -149,7 +120,7 @@ func restoreContainers() error {
 		uuid := utils.Truncate(cnt.Id)
 		if container, err = dockerClient.FetchContainer(uuid, cnt.Image); err != nil {
 			if err != docker.ErrImageNotTagged {
-				log.Logf(log.ERROR, "failed to fetch %s on restore: %s", cnt.Id, err)
+				//log.Logf(log.ERROR, "failed to fetch %s on restore: %s", cnt.Id, err)
 			}
 			continue
 		}
@@ -161,7 +132,7 @@ func restoreContainers() error {
 			fatal(err)
 		}
 		if err := sendService(uuid, service); err != nil {
-			log.Logf(log.ERROR, "failed to send %s to skydns on restore: %s", uuid, err)
+			//log.Logf(log.ERROR, "failed to send %s to skydns on restore: %s", uuid, err)
 		}
 	}
 	return nil
@@ -169,13 +140,13 @@ func restoreContainers() error {
 
 // sendService sends the uuid and service data to skydns
 func sendService(uuid string, service *msg.Service) error {
-	log.Logf(log.INFO, "adding %s (%s) to skydns", uuid, service.Name)
+	//log.Logf(log.INFO, "adding %s (%s) to skydns", uuid, service.Name)
 	if err := skydns.Add(uuid, service); err != nil {
 		// ignore erros for conflicting uuids and start the heartbeat again
 		if err != client.ErrConflictingUUID {
 			return err
 		}
-		log.Logf(log.INFO, "service already exists for %s. Resetting ttl.", uuid)
+		//log.Logf(log.INFO, "service already exists for %s. Resetting ttl.", uuid)
 		updateService(uuid, ttl)
 	}
 	go heartbeat(uuid)
@@ -183,7 +154,7 @@ func sendService(uuid string, service *msg.Service) error {
 }
 
 func removeService(uuid string) error {
-	log.Logf(log.INFO, "removing %s from skydns", uuid)
+	//log.Logf(log.INFO, "removing %s from skydns", uuid)
 	return skydns.Delete(uuid)
 }
 
@@ -217,17 +188,17 @@ func eventHandler(c chan *docker.Event, group *sync.WaitGroup) {
 	defer group.Done()
 
 	for event := range c {
-		log.Logf(log.DEBUG, "received event (%s) %s %s", event.Status, event.ContainerId, event.Image)
+		//log.Logf(log.DEBUG, "received event (%s) %s %s", event.Status, event.ContainerId, event.Image)
 		uuid := utils.Truncate(event.ContainerId)
 
 		switch event.Status {
 		case "die", "stop", "kill":
 			if err := removeService(uuid); err != nil {
-				log.Logf(log.ERROR, "error removing %s from skydns: %s", uuid, err)
+				//log.Logf(log.ERROR, "error removing %s from skydns: %s", uuid, err)
 			}
 		case "start", "restart":
 			if err := addService(uuid, event.Image); err != nil {
-				log.Logf(log.ERROR, "error adding %s to skydns: %s", uuid, err)
+				//log.Logf(log.ERROR, "error adding %s to skydns: %s", uuid, err)
 			}
 		}
 	}
@@ -236,14 +207,13 @@ func eventHandler(c chan *docker.Event, group *sync.WaitGroup) {
 func fatal(err error) {
 	fmt.Fprintf(os.Stderr, "%s\n", err)
 	os.Exit(1)
-
 }
 
 func main() {
 	validateSettings()
-	if err := setupLogger(); err != nil {
-		fatal(err)
-	}
+	//if err := setupLogger(); err != nil {
+	//	fatal(err)
+	//}
 
 	var (
 		err   error
@@ -256,30 +226,31 @@ func main() {
 	}
 
 	if dockerClient, err = docker.NewClient(pathToSocket); err != nil {
-		log.Logf(log.FATAL, "error connecting to docker: %s", err)
+		//log.Logf(log.FATAL, "error connecting to docker: %s", err)
 		fatal(err)
+		//log.Fatal(err)
 	}
 
 	if skydnsContainerName != "" {
 		container, err := dockerClient.FetchContainer(skydnsContainerName, "")
 		if err != nil {
-			log.Logf(log.FATAL, "error retrieving skydns container '%s': %s", skydnsContainerName, err)
+			//log.Logf(log.FATAL, "error retrieving skydns container '%s': %s", skydnsContainerName, err)
 			fatal(err)
 		}
 
 		skydnsUrl = "http://" + container.NetworkSettings.IpAddress + ":8080"
 	}
 
-	log.Logf(log.INFO, "skydns URL: %s", skydnsUrl)
+	//log.Logf(log.INFO, "skydns URL: %s", skydnsUrl)
 
 	if skydns, err = client.NewClient(skydnsUrl, secret, domain, "172.17.42.1:53"); err != nil {
-		log.Logf(log.FATAL, "error connecting to skydns: %s", err)
+		//log.Logf(log.FATAL, "error connecting to skydns: %s", err)
 		fatal(err)
 	}
 
-	log.Logf(log.DEBUG, "starting restore of containers")
+	//log.Logf(log.DEBUG, "starting restore of containers")
 	if err := restoreContainers(); err != nil {
-		log.Logf(log.FATAL, "error restoring containers: %s", err)
+		//log.Logf(log.FATAL, "error restoring containers: %s", err)
 		fatal(err)
 	}
 
@@ -291,7 +262,7 @@ func main() {
 		go eventHandler(events, group)
 	}
 
-	log.Logf(log.DEBUG, "starting main process")
+	//log.Logf(log.DEBUG, "starting main process")
 	group.Wait()
-	log.Logf(log.DEBUG, "stopping cleanly via EOF")
+	//log.Logf(log.DEBUG, "stopping cleanly via EOF")
 }
