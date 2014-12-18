@@ -1,13 +1,43 @@
 language: go
-
 go:
-    - 1.2
-
+- '1.3'
+env:
+- CGO_ENABLED=0
+before_install:
+- cp ci/travis-ci.sh $HOME/
+- chmod +x $HOME/travis-ci.sh
+- $HOME/travis-ci.sh before-install
 install:
-    - go get github.com/skynetservices/skydns1/msg
-    - go get github.com/skynetservices/skydns1/client
-    - go get github.com/crosbymichael/skydock/docker
-    - go get github.com/crosbymichael/skydock/utils
-    - go get github.com/influxdb/influxdb/client
-    - go get github.com/crosbymichael/log
-    - go get github.com/robertkrimen/otto
+- $HOME/travis-ci.sh install
+before_script:
+- $HOME/travis-ci.sh before-script
+script:
+- $HOME/travis-ci.sh script
+after_script:
+- $HOME/travis-ci.sh after-script
+after_success:
+- $HOME/travis-ci.sh after-success
+before_deploy:
+- $HOME/travis-ci.sh before-deploy
+- cd built
+after_deploy:
+- $HOME/travis-ci.sh after-deploy
+notifications:
+  irc:
+  - chat.freenode.net#kalabox
+  email:
+    recipients:
+    - mike@kalamuna.com
+    - ben@kalamuna.com
+    on_success: always
+deploy:
+  provider: releases
+  api_key:
+    secure: HOIX4Owa1x1F8/3iIJJvmgdWIJzvtINaKXLVpzQQS3+IB9duEyWJjrbv0o98PlEqupwbCrRurM5hoHdHuImbTaFbFyQtI8x0cbvEhao+y3RmApUbQLPsjEHyKNUmtCVJblC1zUo+bzrnj4iKOUor3VtGwdhqRqPspBbV28s3lfQ=
+  file: skydock
+  on:
+    repo: kalabox/skydock
+    all_branches: true
+    tags: true
+  skip_cleanup: true
+
